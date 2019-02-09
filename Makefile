@@ -1,12 +1,13 @@
 CXX=g++
 CXXFLAGS=-Wall
-LDFLAGS=-lwiringPi
-OBJECTS=MAX30102.o
 
 RM=rm -f
 
-test.out: $(OBJECTS) test.cpp
-	$(CXX) $(CXXFLAGS) test.cpp $(OBJECTS) -o test.out $(LDFLAGS)
+test.out: MAX30102.o test.cpp
+	$(CXX) $(CXXFLAGS) test.cpp MAX30102.o -o test.out
+
+shutdown.out: MAX30102.o shutdown.cpp
+	$(CXX) $(CXXFLAGS) shutdown.cpp MAX30102.o -o shutdown.out $(LDFLAGS)
 
 MAX30102.o: MAX30102.cpp MAX30102.h
 	$(CXX) $(CXXFLAGS) -c MAX30102.cpp

@@ -2,6 +2,9 @@
 #include <cstring>
 #include <unistd.h>
 #include <iostream>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include "i2c-dev.h"
 #include "MAX30102.h"
 
 // Status Registers
@@ -133,30 +136,37 @@ MAX30102::MAX30102() {
  */
 int MAX30102::begin(uint32_t i2cSpeed, uint8_t i2cAddr) {
 	// [TODO] Set I2C Speed.
-	// Start I2C
-	int fd = wiringPiI2CSetup(i2cAddr);
+	const char* devName = "/dev/i2c-1";
+
+	// Open the I2C bus
+	int fd = open(devName, O_RDWR);
 	if (fd == -1) {
 		return -1;
 	}
 
-	// Check if part id matches.
-	uint8_t partId = wiringPiI2CReadReg8(fd, REG_PARTID);
-	if (partId != MAX30102_EXPECTEDPARTID) {
+	if (ioctl(fd, I2C_SLAVE, i2cAddr) < 0) {
 		return -2;
 	}
 
 	_i2c = fd;
-	return wiringPiI2CReadReg8(fd, REG_REVISIONID);
+	_i2caddr = i2cAddr;
+
+	// Check if part id matches.
+	if (readPartID() != MAX30102_EXPECTEDPARTID) {
+		return -3;
+	}
+
+	return i2c_smbus_read_byte_data(fd, REG_REVISIONID);
 }
 
 
 // INterrupt configuration //
 
 uint8_t MAX30102::getINT1(void) {
-	return (wiringPiI2CReadReg8(_i2c, REG_INTSTAT1));
+	return (i2c_smbus_read_byte_data(_i2c, REG_INTSTAT1));
 }
 uint8_t MAX30102::getINT2(void) {
-	return (wiringPiI2CReadReg8(_i2c, REG_INTSTAT2));
+	return (i2c_smbus_read_byte_data(_i2c, REG_INTSTAT2));
 }
 
 void MAX30102::enableAFULL(void) {
@@ -226,7 +236,7 @@ void MAX30102::softReset(void) {
 	auto startTime = std::chrono::system_clock::now();
 	std::chrono::system_clock::time_point endTime;
 	do {
-		uint8_t response = wiringPiI2CReadReg8(_i2c, REG_MODECONFIG);
+		uint8_t response = i2c_smbus_read_byte_data(_i2c, REG_MODECONFIG);
 		if ((response & RESET) == 0) break; // Done reset!
 		usleep(1); // Prevent over burden the I2C bus
 		endTime = std::chrono::system_clock::now();
@@ -272,18 +282,18 @@ void MAX30102::setPulseWidth(uint8_t pulseWidth) {
  * Sets Red LED Pulse Amplitude.
  */
 void MAX30102::setPulseAmplitudeRed(uint8_t amplitude) {
-	wiringPiI2CWriteReg8(_i2c, REG_LED1_PULSEAMP, amplitude);
+	i2c_smbus_write_byte_data(_i2c, REG_LED1_PULSEAMP, amplitude);
 }
 
 /**
  * Sets IR LED Pulse Amplitude.
  */
 void MAX30102::setPulseAmplitudeIR(uint8_t amplitude) {
-	wiringPiI2CWriteReg8(_i2c, REG_LED2_PULSEAMP, amplitude);
+	i2c_smbus_write_byte_data(_i2c, REG_LED2_PULSEAMP, amplitude);
 }
 
 void MAX30102::setPulseAmplitudeProximity(uint8_t amplitude) {
-	wiringPiI2CWriteReg8(_i2c, REG_LED_PROX_AMP, amplitude);
+	i2c_smbus_write_byte_data(_i2c, REG_LED_PROX_AMP, amplitude);
 }
 
 /**
@@ -291,7 +301,7 @@ void MAX30102::setPulseAmplitudeProximity(uint8_t amplitude) {
  * The threshMSB signifies only the 8 most significant-bits of the ADC count.
  */
 void MAX30102::setProximityThreshold(uint8_t threshMSB) {
-	wiringPiI2CWriteReg8(_i2c, REG_PROXINTTHRESH, threshMSB);
+	i2c_smbus_write_byte_data(_i2c, REG_PROXINTTHRESH, threshMSB);
 }
 
 /**
@@ -325,8 +335,8 @@ void MAX30102::enableSlot(uint8_t slotNumber, uint8_t device) {
  * Clears all slot assignments.
  */
 void MAX30102::disableSlots(void) {
-	wiringPiI2CWriteReg8(_i2c, REG_MULTILEDCONFIG1, 0);
-	wiringPiI2CWriteReg8(_i2c, REG_MULTILEDCONFIG2, 0);
+	i2c_smbus_write_byte_data(_i2c, REG_MULTILEDCONFIG1, 0);
+	i2c_smbus_write_byte_data(_i2c, REG_MULTILEDCONFIG2, 0);
 }
 
 
@@ -344,9 +354,9 @@ void MAX30102::setFIFOAverage(uint8_t numberOfSamples) {
  * Recommended to clear FIFO before beginning a read.
  */
 void MAX30102::clearFIFO(void) {
-	wiringPiI2CWriteReg8(_i2c, REG_FIFOWRITEPTR, 0);
-	wiringPiI2CWriteReg8(_i2c, REG_FIFOOVERFLOW, 0);
-	wiringPiI2CWriteReg8(_i2c, REG_FIFOREADPTR, 0);
+	i2c_smbus_write_byte_data(_i2c, REG_FIFOWRITEPTR, 0);
+	i2c_smbus_write_byte_data(_i2c, REG_FIFOOVERFLOW, 0);
+	i2c_smbus_write_byte_data(_i2c, REG_FIFOREADPTR, 0);
 }
 
 /**
@@ -375,14 +385,14 @@ void MAX30102::setFIFOAlmostFull(uint8_t numberOfSamples) {
  * Read the FIFO Write Pointer.
  */
 uint8_t MAX30102::getWritePointer(void) {
-	return (wiringPiI2CReadReg8(_i2c, REG_FIFOWRITEPTR));
+	return (i2c_smbus_read_byte_data(_i2c, REG_FIFOWRITEPTR));
 }
 
 /**
  * Read the FIFO Read Pointer.
  */
 uint8_t MAX30102::getReadPointer(void) {
-	return (wiringPiI2CReadReg8(_i2c, REG_FIFOREADPTR));
+	return (i2c_smbus_read_byte_data(_i2c, REG_FIFOREADPTR));
 }
 
 /**
@@ -393,7 +403,7 @@ float MAX30102::readTemperature() {
 	// DIE_TEMP_RDY interrupt must be enabled.
 	
 	// Step 1: Config die temperature register to take 1 temperature sample.
-	wiringPiI2CWriteReg8(_i2c, REG_DIETEMPCONFIG, 0x01);
+	i2c_smbus_write_byte_data(_i2c, REG_DIETEMPCONFIG, 0x01);
 
 	// Poll for bit to clear, reading is then complete.
 	// Timeout after 100ms.
@@ -401,15 +411,15 @@ float MAX30102::readTemperature() {
 	std::chrono::system_clock::time_point endTime;
 	do {
 		// Check to see whether DIE_TEMP_RDY interrupt is set.
-		uint8_t response = wiringPiI2CReadReg8(_i2c, REG_INTSTAT2);
+		uint8_t response = i2c_smbus_read_byte_data(_i2c, REG_INTSTAT2);
 		if ((response & INT_DIE_TEMP_RDY_ENABLE) > 0) break;
 		usleep(1);
 		endTime = std::chrono::system_clock::now();
 	} while(std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime).count() < 100);
 	
 	// Step 2: Read die temperature register (integer)
-	int8_t tempInt = wiringPiI2CReadReg8(_i2c, REG_DIETEMPINT);
-	uint8_t tempFrac = wiringPiI2CReadReg8(_i2c, REG_DIETEMPFRAC); // causes clearing of the DIE_TEMP_RDY interrupt
+	int8_t tempInt = i2c_smbus_read_byte_data(_i2c, REG_DIETEMPINT);
+	uint8_t tempFrac = i2c_smbus_read_byte_data(_i2c, REG_DIETEMPFRAC); // causes clearing of the DIE_TEMP_RDY interrupt
 
 	// Step 3: Calculate temperature.
 	return (float)tempInt + ((float)tempFrac * 0.0625);
@@ -430,18 +440,18 @@ float MAX30102::readTemperatureF() {
  * Sets the PROX_INT_THRESHold.
  */
 void MAX30102::setPROXINTTHRESH(uint8_t val) {
-	wiringPiI2CWriteReg8(_i2c, REG_PROXINTTHRESH, val);
+	i2c_smbus_write_byte_data(_i2c, REG_PROXINTTHRESH, val);
 }
 
 
 // Device ID and Revision //
 
 uint8_t MAX30102::readPartID() {
-	return wiringPiI2CReadReg8(_i2c, REG_PARTID);
+	return i2c_smbus_read_byte_data(_i2c, REG_PARTID);
 }
 
 void MAX30102::readRevisionID() {
-	revisionID = wiringPiI2CReadReg8(_i2c, REG_REVISIONID);
+	revisionID = i2c_smbus_read_byte_data(_i2c, REG_REVISIONID);
 }
 
 uint8_t MAX30102::getRevisionID() {
@@ -583,14 +593,12 @@ uint16_t MAX30102::check(void) {
 	if (readPointer != writePointer) {
 		// Calculate the number of readings we need to get from sensor
 		numberOfSamples = writePointer - readPointer;
+		//std::cout << "There are " << (int)numberOfSamples << " available samples." << std::endl;
 		if (numberOfSamples < 0) numberOfSamples += 32;
 
 		// We know have the number of readings, now calculate bytes to read.
 		// For this example we are just doing Red and IR (3 bytes each)
 		int bytesLeftToRead = numberOfSamples * activeLEDs * 3;
-
-		// Get ready to read a burst of data from the FIFO register
-		// [TODO] Transmission.
 
 		// We may need to read as many as 288 bytes so we read in blocks no larger than I2C_BUFFER_LENGTH
 		while (bytesLeftToRead > 0) {
@@ -607,7 +615,8 @@ uint16_t MAX30102::check(void) {
 			bytesLeftToRead -= toGet;
 
 			// Request toGet number of bytes from sensor
-			// [TODO] Request bytes from sensor.
+			std::vector<uint8_t> dataReceived = readMany(REG_FIFODATA, toGet);
+			int index = 0;
 
 			while (toGet > 0) {
 				sense.head++; // Advance the head of the storage struct
@@ -618,10 +627,9 @@ uint16_t MAX30102::check(void) {
 
 				// Burst read three bytes - RED
 				temp[3] = 0;
-				// [TODO] read bytes
-				temp[2] = wiringPiI2CReadReg8(_i2c, REG_FIFODATA);
-				temp[1] = wiringPiI2CReadReg8(_i2c, REG_FIFODATA);
-				temp[0] = wiringPiI2CReadReg8(_i2c, REG_FIFODATA);
+				temp[2] = dataReceived[index++];
+				temp[1] = dataReceived[index++];
+				temp[0] = dataReceived[index++];
 
 				// Convert array to long
 				std::memcpy(&tempLong, temp, sizeof(tempLong));
@@ -635,10 +643,9 @@ uint16_t MAX30102::check(void) {
 				if (activeLEDs > 1) {
 					// Burst read three more bytes - IR
 					temp[3] = 0;
-					// [TODO] read bytes
-					temp[2] = wiringPiI2CReadReg8(_i2c, REG_FIFODATA);
-					temp[1] = wiringPiI2CReadReg8(_i2c, REG_FIFODATA);
-					temp[0] = wiringPiI2CReadReg8(_i2c, REG_FIFODATA);
+					temp[2] = dataReceived[index++];
+					temp[1] = dataReceived[index++];
+					temp[0] = dataReceived[index++];
 
 					// Convert array to long
 					std::memcpy(&tempLong, temp, sizeof(tempLong));
@@ -684,11 +691,25 @@ bool MAX30102::safeCheck(uint8_t maxTimeToCheck) {
  */
 void MAX30102::bitMask(uint8_t reg, uint8_t mask, uint8_t thing) {
 	// Read register
-	uint8_t originalContents = wiringPiI2CReadReg8(_i2c, reg);
+	uint8_t originalContents = i2c_smbus_read_byte_data(_i2c, reg);
 
 	// Zero-out portions of the register based on mask
 	originalContents = originalContents & mask;
 
 	// Change contents of register
-	wiringPiI2CWriteReg8(_i2c, reg, originalContents | thing);
+	i2c_smbus_write_byte_data(_i2c, reg, originalContents | thing);
+}
+
+/**
+ * Read multiple bytes from register.
+ */
+std::vector<uint8_t> MAX30102::readMany(uint8_t address, uint8_t length) {
+	ioctl(_i2c, I2C_SLAVE, _i2caddr);
+	uint8_t* rawRead = new uint8_t[length];
+	i2c_smbus_read_i2c_block_data(_i2c, address, length, rawRead);
+	std::vector<uint8_t> result;
+	for (uint8_t i = 0; i < length; i++) {
+		result.push_back(rawRead[i]);
+	}
+	return result;
 }

@@ -1,5 +1,5 @@
 #include <cstdint>
-#include <wiringPiI2C.h>
+#include <vector>
 
 #define MAX30102_ADDRESS	0x57
 
@@ -84,9 +84,10 @@ class MAX30102 {
 		uint8_t readPartID();
 
 		// Setup the sensor with user selectable settings
-		void setup(uint8_t powerLevel = 0x1F, uint8_t sampleAverage = 4, uint8_t ledMode = 3, int sampleRate = 400, int pulseWidth = 411, int adcRange = 4096);
+		void setup(uint8_t powerLevel = 0x1F, uint8_t sampleAverage = 4, uint8_t ledMode = 2, int sampleRate = 400, int pulseWidth = 411, int adcRange = 4096);
 	private:
 		int _i2c;
+		uint8_t _i2caddr;
 
 		uint8_t activeLEDs;
 
@@ -95,6 +96,8 @@ class MAX30102 {
 		void readRevisionID();
 
 		void bitMask(uint8_t reg, uint8_t mask, uint8_t thing);
+
+		std::vector<uint8_t> readMany(uint8_t address, uint8_t length);
 
 		#define STORAGE_SIZE 4
 		typedef struct Record {
