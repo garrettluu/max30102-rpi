@@ -10,10 +10,10 @@ test.out: MAX30102.o test.cpp
 shutdown.out: MAX30102.o shutdown.cpp
 	$(CXX) $(CXXFLAGS) shutdown.cpp MAX30102.o -o shutdown.out
 
-test2.out: MAX30102.o HeartRate.o panTompkins.o microsmooth.o test2.cpp
-	$(CXX) $(CXXFLAGS) test2.cpp panTompkins.o HeartRate.o microsmooth.o MAX30102.o -o test2.out -lpthread
+test2.out: MAX30102.o HeartRate.o test2.cpp
+	$(CXX) $(CXXFLAGS) test2.cpp HeartRate.o MAX30102.o -o test2.out -lpthread
 
-HeartRate.o: MAX30102.o microsmooth.o HeartRate.cpp HeartRate.h
+HeartRate.o: MAX30102.o HeartRate.cpp HeartRate.h
 	$(CXX) $(CXXFLAGS) -c HeartRate.cpp 
 	
 panTompkins.o: panTompkins.c panTompkins.h

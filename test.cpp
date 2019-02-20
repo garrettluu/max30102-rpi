@@ -24,7 +24,7 @@ int main(void) {
 		cout << "IR: " << heartSensor.getIR();
 		cout << ", RED: " << heartSensor.getRed();
 		cout << endl;
-		usleep(100);
+		usleep(500);
 		//break;
 	}
 	//heartSensor.shutDown();
