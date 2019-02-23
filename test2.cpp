@@ -12,8 +12,8 @@ int main() {
 	heartRate.begin();
 	cout << "Began heart rate calculation..." << endl;
 	while (1) {
-//		cout << "Heart Rate- IR:" << heartRate.getLatestIRHeartRate() << ", RED:" << heartRate.getLatestRedHeartRate();
-//		cout << ", Temperature: " << heartRate.getLatestTemperatureF() << endl;
+		cout << "IR Heart Rate- Latest:" << heartRate.getLatestIRHeartRate() << ", SAFE:" << heartRate.getSafeIRHeartRate();
+		cout << ", Temperature: " << heartRate.getLatestTemperatureF() << endl;
 		usleep(1000000);
 	}
 	return 0;
