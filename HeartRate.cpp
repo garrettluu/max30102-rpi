@@ -176,29 +176,19 @@ int32_t HeartRate::Derivative(int32_t data) {
 bool crest = false;
 bool trough = false;
 int32_t lastData = 0;
+double lastChange = 0;
 int sensitivity = 1;
 int currentCheck = 0;
+double threshold = 5;
 bool HeartRate::peakDetect(int32_t data) {
-	if (crest && trough && data > lastData && (localMaxima - localMinima) > 150) {
-		if (currentCheck >= sensitivity) {
-			crest = false;
-			trough = false;
-			currentCheck = 0;
-			return true;
-		} else {
-			currentCheck++;
-			return false;
-		}
+	double derivative = data - lastData;
+	double secondDerivative = derivative - lastChange;
+
+	if (lastChange < 0 && derivative < threshold && secondDerivative > 0 && data < -10) {
+		return true;
 	}
-	if (data > 10 && data > lastData) {
-		localMaxima = data;
-		crest = true;
-	} else if (data < -10 && data < lastData) {
-		localMinima = data;
-		if (crest) {
-			trough = true;
-		}
-	}
+
+	lastChange = derivative;
 	lastData = data;
 	return false;
 }
