@@ -2,6 +2,7 @@
 #include <thread>
 #include "DigitalFilters.h"
 #include "HeartRate.h"
+#include "easywsclient.hpp"
 
 LowPassFilter lpf(0.08, M_PI);
 HighPassFilter hpf(0.08, M_PI);
