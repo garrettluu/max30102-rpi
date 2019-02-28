@@ -213,13 +213,13 @@ bool HeartRate::peakDetect(int32_t data) {
 	//std::cout << "Threshold: " << threshold << ", max: " << localMaxima << ", min: " << localMinima << std::endl;
 	if (data > localMaxima) {
 		localMaxima = data;
-		if (data > 10) {
+		if (data > 100) {
 			crest = true;
 		}
 	}
 	if (crest && data < localMinima) {
 		localMinima = data;
-		if (crest && data < -20) {
+		if (crest && data < -100) {
 			trough = true;
 		}
 	}
