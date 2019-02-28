@@ -36,8 +36,11 @@ void HeartRate::begin() {
 	running = true;
 
 	// Init last values.
-	irLastValue = sensor->getIR();
-	redLastValue = sensor->getRed();
+	irLastValue = -999;
+	redLastValue = -999;
+	// Init local maxima/minima for peak detection
+	localMaxima = -9999;
+	localMinima = 9999;
 	// Get current time.
 	auto timeCurrent = std::chrono::system_clock::now();
 	// Init last heartbeat times.
@@ -95,29 +98,28 @@ void HeartRate::runCalculationLoop() {
 	int32_t filteredIRValue = static_cast<int32_t>(irValue);
 	filteredIRValue = lpf.update(filteredIRValue);
 	filteredIRValue = hpf.update(filteredIRValue);
-//	filteredIRValue = Derivative(filteredIRValue);
 
 //	[DEBUG] Uncomment lines below to disable heart rate calculation and display raw data.
 //	std::cout << loopCount++ << "," << filteredIRValue << std::endl;
 //	return;
 
 	int timeSinceLastIRHeartBeat = std::chrono::duration_cast<std::chrono::milliseconds>(timeCurrent - timeLastIRHeartBeat).count();
-	// We're finished with irLastValue, so let's update it's value for next time.
-	irLastValue = filteredIRValue;
 
-//	std::cout << loopCount++ << "," << filteredIRValue << ": ";
+	//std::cout << loopCount++ << "," << filteredIRValue << ": ";
 	if (peakDetect(filteredIRValue)) {
 		int _irBPM = 60000/timeSinceLastIRHeartBeat;
 		latestIRBPM = _irBPM;
 		bpmBuffer[nextBPMBufferIndex++] = _irBPM;
 		if (nextBPMBufferIndex >= BPM_BUFFER_SIZE) nextBPMBufferIndex = 0;
 		//std::cout << "BPM : " << _irBPM;
-		//std::cout << std::endl;
 		
 		// Update timeLastIRHeartBeat for next time.
 		timeLastIRHeartBeat = timeCurrent;
 	}
-//	std::cout << std::endl;
+	//std::cout << std::endl;
+
+	// We're finished with irLastValue, so let's update their value for next time.
+	irLastValue = filteredIRValue;
 	
 	// Calculate the Red heart rate //
 /*	
@@ -154,21 +156,6 @@ void HeartRate::updateTemperature() {
 	latestTemperature = sensor->readTemperatureF();
 }
 
-int32_t HeartRate::Derivative(int32_t data) {
-	int32_t y;
-	int i;
-	static int x_derv[4];
-
-	y = (data << 1) + x_derv[3] - x_derv[1] - (x_derv[0] << 1);
-
-	y >>= 3;
-	for (i = 0; i < 3; i++) {
-		x_derv[i] = x_derv[i+1];
-	}
-	x_derv[3] = data;
-	return y;
-}
-
 /**
  * Detects peaks in heart data.
  * Returns true when input data is a peak.
@@ -176,31 +163,66 @@ int32_t HeartRate::Derivative(int32_t data) {
  */
 bool crest = false;
 bool trough = false;
-int32_t lastData = 0;
-int sensitivity = 1;
-int currentCheck = 0;
+uint8_t dataBeenIncreasing = 0;
+uint8_t nextPastPeaksIndex = 0;
+
+int32_t HeartRate::getPeakThreshold() {
+	int32_t avgMaximas = 0;
+	int32_t avgMinimas = 0;
+	for (int i = 0; i < HeartRate::PAST_PEAKS_SIZE; i++) {
+		//std::cout << "Index " << i << ": " << pastMaximas[i] << "/" << pastMinimas[i] << ", ";
+		avgMaximas += pastMaximas[i];
+		avgMinimas += pastMinimas[i];
+	}
+	//std::cout << "Average Maximas: " << avgMaximas << ", Minimas: " << avgMinimas << std::endl;
+	avgMaximas /= HeartRate::PAST_PEAKS_SIZE;
+	avgMinimas /= HeartRate::PAST_PEAKS_SIZE;
+	int32_t threshold = (avgMaximas+avgMinimas)/1.5;
+	if (threshold > 0 || threshold < -500) {
+		return -20;
+	}
+	return threshold;
+}
 bool HeartRate::peakDetect(int32_t data) {
-	if (crest && trough && data > lastData && (localMaxima - localMinima) > 150) {
-		if (currentCheck >= sensitivity) {
-			crest = false;
-			trough = false;
-			currentCheck = 0;
+	//std::cout << "Data: " << data << ", irLastValue: " << irLastValue << ", localMaxima: " << localMaxima << ", localMinima: "<< localMinima << std::endl;
+	if (irLastValue == -999) {
+		// This is first time peakDetect is called.
+		return false;
+	}
+	if (crest && trough && data > irLastValue) {
+		dataBeenIncreasing++;
+		if (dataBeenIncreasing >= 2) {
+			// This is a beat.
+			// Add local maxima & minima to past
+			pastMaximas[nextPastPeaksIndex] = localMaxima;
+			pastMinimas[nextPastPeaksIndex] = localMinima;
+			nextPastPeaksIndex++;
+			if (nextPastPeaksIndex >= HeartRate::PAST_PEAKS_SIZE) {
+				nextPastPeaksIndex = 0;
+			}
+			// Reset values
+			crest = trough = false;
+			dataBeenIncreasing = 0;
+			localMaxima = -9999;
+			localMinima = 9999;
+			
 			return true;
-		} else {
-			currentCheck++;
-			return false;
 		}
 	}
-	if (data > 10 && data > lastData) {
+	//int32_t threshold = getPeakThreshold();
+	//std::cout << "Threshold: " << threshold << ", max: " << localMaxima << ", min: " << localMinima << std::endl;
+	if (data > localMaxima) {
 		localMaxima = data;
-		crest = true;
-	} else if (data < -10 && data < lastData) {
+		if (data > 10) {
+			crest = true;
+		}
+	}
+	if (crest && data < localMinima) {
 		localMinima = data;
-		if (crest) {
+		if (crest && data < -20) {
 			trough = true;
 		}
 	}
-	lastData = data;
 	return false;
 }
 
@@ -214,9 +236,22 @@ void HeartRate::resetCalculations() {
 	latestRedBPM = 0;
 	//lastRedBPM = 0;
 
+//	calculateMiddle = true;
+	// Reset peak detection.
+	crest = trough = false;
+	nextPastPeaksIndex = 0;
+	dataBeenIncreasing = 0;
+	localMaxima = -9999;
+	localMinima = 9999;
+
+	// Reset bpm buffer
+	for (int i = 0; i < BPM_BUFFER_SIZE; i++) {
+		bpmBuffer[i] = 0;
+	}
+
 	// Reset last values.
-	irLastValue = sensor->getIR();
-	redLastValue = sensor->getRed();
+	irLastValue = -999;
+	redLastValue = -999;
 
 	// Get current time.
 	auto timeCurrent = std::chrono::system_clock::now();

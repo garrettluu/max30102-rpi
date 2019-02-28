@@ -35,13 +35,17 @@ class HeartRate {
 		float latestTemperature = -999;
 
 		// For Peak Detection
-		int32_t localMaxima = -9999;
-		int32_t localMinima = 9999;
+		int32_t localMaxima;
+		int32_t localMinima;
+		const static int8_t PAST_PEAKS_SIZE = 2;
+		int32_t pastMaximas[PAST_PEAKS_SIZE];
+		int32_t pastMinimas[PAST_PEAKS_SIZE];
 
 		void loopThread();
 		void runCalculationLoop();
 		void updateTemperature();
 		void resetCalculations();
 		int32_t Derivative(int32_t data);
+		int32_t getPeakThreshold();
 		bool peakDetect(int32_t data);
 };
