@@ -4,7 +4,8 @@
 
 class HeartRate {
 	public:
-		HeartRate(MAX30102& sensor);
+		HeartRate(); // Fake constructor
+		HeartRate(MAX30102 *sensor);
 		~HeartRate();
 		
 		void begin();

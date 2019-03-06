@@ -8,7 +8,7 @@ using namespace std;
 int main() {
 	cout << "Starting..." << endl;
 	MAX30102 sensor;
-	HeartRate heartRate(sensor);
+	HeartRate heartRate(&sensor);
 	heartRate.begin();
 	cout << "Began heart rate calculation..." << endl;
 	while (1) {

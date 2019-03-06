@@ -6,10 +6,15 @@
 LowPassFilter lpf(0.08, M_PI);
 HighPassFilter hpf(0.08, M_PI);
 
+// Fake Constructor
+HeartRate::HeartRate() {
+}
+
 // Constructor
-HeartRate::HeartRate(MAX30102& _sensor) {
-	sensor = &_sensor;
+HeartRate::HeartRate(MAX30102 *_sensor) {
+	sensor = _sensor;
 	if (sensor->begin() < 0) {
+		std::cout << "Failed i2c." << std::endl;
 		// Failed i2c.
 		throw;
 	}
@@ -19,7 +24,7 @@ HeartRate::HeartRate(MAX30102& _sensor) {
 
 // Destructor
 HeartRate::~HeartRate() {
-	// Stop calculation loop if running and clear Microsmooth history.
+	// Stop calculation loop if running.
 	running = false;
 
 	// Shutdown sensor->
@@ -66,8 +71,7 @@ void HeartRate::stop() {
 	resetCalculations();
 }
 
-long loopCount = 1;
-//auto timeBase = std::chrono::system_clock::now();
+//int loopCount = 1;
 void HeartRate::runCalculationLoop() {
 	// Wait until new data is available from sensor->
 	while (!sensor->available()) {
